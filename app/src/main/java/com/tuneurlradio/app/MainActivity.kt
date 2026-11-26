@@ -1,0 +1,203 @@
+package com.tuneurlradio.app
+
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.util.Log
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.tuneurlradio.app.tuneurl.TuneURLMatch
+import com.tuneurlradio.app.tuneurl.TimeUtils
+import com.tuneurlradio.app.ui.main.MainIntent
+import com.tuneurlradio.app.ui.main.MainScreen
+import com.tuneurlradio.app.ui.main.MainViewModel
+import com.tuneurlradio.app.ui.screens.player.PlayerScreen
+import com.tuneurlradio.app.ui.theme.TuneURLRadioTheme
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.MutableStateFlow
+
+@AndroidEntryPoint
+class MainActivity : ComponentActivity() {
+
+    private val TAG = "MainActivity"
+    
+    // Flow to communicate notification intent to Compose
+    private val pendingNotificationMatch = MutableStateFlow<TuneURLMatch?>(null)
+
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        permissions.entries.forEach { entry ->
+            Log.d(TAG, "Permission ${entry.key} granted: ${entry.value}")
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+
+        requestRequiredPermissions()
+        
+        // Handle notification intent if present
+        handleNotificationIntent(intent)
+
+        setContent {
+            TuneURLRadioTheme {
+                val mainViewModel: MainViewModel = hiltViewModel()
+                val state by mainViewModel.state.collectAsState()
+                val context = LocalContext.current
+                val pendingMatch by pendingNotificationMatch.collectAsState()
+                
+                // Handle pending notification match
+                LaunchedEffect(pendingMatch) {
+                    pendingMatch?.let { match ->
+                        Log.d(TAG, "Showing engagement from notification: ${match.name}")
+                        // Small delay to ensure UI is ready
+                        kotlinx.coroutines.delay(300)
+                        mainViewModel.handleIntent(MainIntent.ShowEngagementFromNotification(match))
+                        pendingNotificationMatch.value = null
+                    }
+                }
+
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    MainScreen(
+                        viewModel = mainViewModel,
+                        onExpandPlayer = {
+                            mainViewModel.handleIntent(MainIntent.ExpandPlayer)
+                        }
+                    )
+
+                    AnimatedVisibility(
+                        visible = state.expandedPlayer,
+                        enter = slideInVertically { it },
+                        exit = slideOutVertically { it }
+                    ) {
+                        BackHandler {
+                            mainViewModel.handleIntent(MainIntent.CollapsePlayer)
+                        }
+
+                        PlayerScreen(
+                            station = state.currentStation,
+                            isPlaying = state.isPlaying,
+                            playerState = state.playerState,
+                            trackName = state.trackName,
+                            artistName = state.artistName,
+                            volume = state.volume,
+                            sleepTimerEndTime = state.sleepTimerEndTime,
+                            onVolumeChange = { mainViewModel.handleIntent(MainIntent.SetVolume(it)) },
+                            onPlayPauseClick = {
+                                mainViewModel.handleIntent(MainIntent.TogglePlayback)
+                            },
+                            onShareClick = {
+                                state.currentStation?.socialURL?.let { url ->
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, url)
+                                    }
+                                    context.startActivity(Intent.createChooser(intent, "Share"))
+                                }
+                            },
+                            onSleepTimerSet = { duration ->
+                                mainViewModel.handleIntent(MainIntent.SetSleepTimer(duration))                            },
+                            onBackClick = {
+                                mainViewModel.handleIntent(MainIntent.CollapsePlayer)
+                            }
+                        )
+                    }
+
+                    if (state.showEngagementSheet && state.currentMatch != null) {
+                        com.tuneurlradio.app.ui.components.EngagementSheet(
+                            match = state.currentMatch!!,
+                            voiceCommandManager = mainViewModel.voiceCommandManager,
+                            tuneURLManager = mainViewModel.tuneURLManager,
+                            voiceCommandsEnabled = state.voiceCommandsEnabled,
+                            onDismiss = { mainViewModel.handleIntent(MainIntent.DismissEngagement) },
+                            onAction = { action -> mainViewModel.handleIntent(MainIntent.RecordInterest(action)) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+    
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        Log.d(TAG, "onNewIntent called with action: ${intent.action}")
+        handleNotificationIntent(intent)
+    }
+    
+    /**
+     * Handle notification intent and extract match data
+     */
+    private fun handleNotificationIntent(intent: Intent?) {
+        if (intent?.action == "com.tuneurlradio.app.SHOW_ENGAGEMENT") {
+            val matchId = intent.getStringExtra("match_id") ?: return
+            val matchName = intent.getStringExtra("match_name") ?: return
+            val matchInfo = intent.getStringExtra("match_info") ?: return
+            val matchType = intent.getStringExtra("match_type") ?: "open_page"
+            val matchDescription = intent.getStringExtra("match_description") ?: ""
+            val matchPercentage = intent.getFloatExtra("match_percentage", 0f)
+            
+            Log.d(TAG, "Notification intent received - Match: $matchName")
+            
+            val match = TuneURLMatch(
+                id = matchId,
+                name = matchName,
+                description = matchDescription,
+                info = matchInfo,
+                matchPercentage = matchPercentage,
+                type = matchType,
+                time = null,
+                date = TimeUtils.getCurrentTimeAsFormattedString()
+            )
+            
+            pendingNotificationMatch.value = match
+        }
+    }
+
+    private fun requestRequiredPermissions() {
+        val permissionsToRequest = mutableListOf<String>()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
+        }
+
+        if (permissionsToRequest.isNotEmpty()) {
+            Log.d(TAG, "Requesting permissions: ${permissionsToRequest.joinToString()}")
+            permissionLauncher.launch(permissionsToRequest.toTypedArray())
+        } else {
+            Log.d(TAG, "All required permissions already granted")
+        }
+    }
+}

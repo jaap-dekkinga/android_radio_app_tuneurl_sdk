@@ -1,0 +1,11 @@
+TuneURL SDK for Android (tuneurl-sdk.aar)
+
+Copyright (c) 2026 Jaap Dekkinga. All rights reserved.
+
+This binary is proprietary software. It is included in this repository only
+so that the TuneURL Radio app can be built. It is not licensed under the MIT
+License that covers the rest of this repository.
+
+You may not copy, modify, distribute, decompile, disassemble or reverse
+engineer this binary, or use it in any other product, without prior written
+permission from the copyright holder.
