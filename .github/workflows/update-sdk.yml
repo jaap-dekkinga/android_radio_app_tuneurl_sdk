@@ -1,0 +1,65 @@
+name: Update TuneURL SDK
+
+# Downloads tuneurl-sdk-<version>.aar from a release of the private
+# jaap-dekkinga/tuneurl_android_sdk repo and opens a pull request that puts it
+# in app/libs/tuneurl-sdk.aar.
+#
+# One-time setup:
+#  1. Create a fine-grained personal access token with read-only
+#     "Contents" access to jaap-dekkinga/tuneurl_android_sdk.
+#  2. Add it to this repo as the Actions secret TUNEURL_SDK_TOKEN.
+#  3. Settings > Actions > General > Workflow permissions:
+#     tick "Allow GitHub Actions to create and approve pull requests".
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'SDK version to bring in (e.g. 1.0.0)'
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download the AAR from the SDK release
+        env:
+          GH_TOKEN: ${{ secrets.TUNEURL_SDK_TOKEN }}
+        run: |
+          v="${{ github.event.inputs.version }}"
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::The TUNEURL_SDK_TOKEN secret is not set (see the comment at the top of this workflow)."
+            exit 1
+          fi
+          gh release download "v$v" --repo jaap-dekkinga/tuneurl_android_sdk \
+            --pattern "tuneurl-sdk-$v.aar" --dir /tmp/sdk
+          mv "/tmp/sdk/tuneurl-sdk-$v.aar" app/libs/tuneurl-sdk.aar
+          echo "$v" > app/libs/TUNEURL_SDK_VERSION
+          ls -l app/libs
+
+      - name: Open a pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${{ github.event.inputs.version }}"
+          branch="tuneurl-sdk-$v"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add app/libs/tuneurl-sdk.aar app/libs/TUNEURL_SDK_VERSION
+          if git diff --cached --quiet; then
+            echo "SDK $v is already in app/libs; nothing to do."
+            exit 0
+          fi
+          git commit -m "TuneURL SDK $v"
+          git push -f origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "TuneURL SDK $v" \
+            --body "Brings in \`tuneurl-sdk-$v.aar\` from the private SDK repo's release v$v. Test a stream Turl and a Listen along Turl on a phone before merging."

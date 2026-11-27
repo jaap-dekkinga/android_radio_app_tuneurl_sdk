@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    HTTPS everywhere, trusting only the system certificate authorities.
+
+    The TuneURL poll endpoint does not answer over HTTPS yet (checked
+    2026-11-24), so plain HTTP is allowed for exactly that host. Remove the
+    entry as soon as it has a certificate, and switch the URL in
+    di/AppModule.kt (provideTuneUrlEndpoints) to https.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- Poll answers (TuneUrlEndpoints.pollUrl) -->
+        <domain includeSubdomains="false">pollapiwebservice.us-east-2.elasticbeanstalk.com</domain>
+    </domain-config>
+
+    <!-- Debug builds only: also trust user-installed CAs, for proxy tools
+         such as Charles or mitmproxy. Release builds ignore this block. -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>

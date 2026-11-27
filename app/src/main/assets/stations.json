@@ -1,0 +1,34 @@
+[
+  {
+    "id": 1,
+    "name": "KSAL Newsradio 1150",
+    "streamURL": "https://ice23.securenetsystems.net/KSALAM",
+    "imageURL": "https://cdnrf.securenetsystems.net/file_radio/stations_large/KSALAM/v5/album-art-default.png",
+    "shortDescription": "KSAL Local Newsstation",
+    "socialURL": "https://www.ksal.com/#"
+  },
+  {
+    "id": 2,
+    "name": "KYEZ",
+    "streamURL": "https://ice23.securenetsystems.net/KYEZ",
+    "imageURL": "https://cdnrf.securenetsystems.net/file_radio/stations_large/KYEZ/v5/logo.png",
+    "shortDescription": "KY93.7 - #1 in Country",
+    "socialURL": "https://www.ksal.com/#"
+  },
+  {
+    "id": 3,
+    "name": "KSALFM 104.9",
+    "streamURL": "https://ice23.securenetsystems.net/KSALFM",
+    "imageURL": "https://cdnrf.securenetsystems.net/file_radio/stations_large/KSALFM/v5/logo.png",
+    "shortDescription": "KSAL.FM 104.9 - All about the music",
+    "socialURL": "https://www.ksal.com/#"
+  },
+  {
+    "id": 4,
+    "name": "KABI",
+    "streamURL": "https://ice42.securenetsystems.net/KABI",
+    "imageURL": "https://cdnrf.securenetsystems.net/file_radio/stations_large/KABI/v5/logo.png",
+    "shortDescription": "The General 1560am | Super Hits Commander",
+    "socialURL": "https://www.ksal.com/#"
+  }
+]
